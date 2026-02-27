@@ -1,0 +1,39 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables
+.env
+
+# Database files
+*.db
+*.sqlite3
+
+# Credentials & Keys
+kube_config.yaml
+*.pem
+
+# Logs
+*.log
+
+# Debug, test, and temporary scripts
+debug_*.py
+test_*.py
+test_*.ps1
+test_out.txt
+admin_auth_test.py
+verify_*.py
+
+# Leftover manifests and dev-only assets
+dummy-pod.yaml
+playground.yaml
+_hash.txt
+PLAN.md

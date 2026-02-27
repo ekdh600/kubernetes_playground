@@ -1,0 +1,75 @@
+# values.yaml — playground-platform Helm Chart 기본 값
+#
+# 이 파일의 값은 helm upgrade --install 시 --set 또는 --set-string 옵션으로 재정의할 수 있다.
+# 민감한 값(adminPasswordHash)은 반드시 helm-deploy.sh를 통해 동적으로 주입해야 한다.
+
+# ── API 서버 이미지 설정 ──────────────────────────────────────
+replicaCount: 1  # 단일 레플리카. HA를 원하면 2 이상으로 설정 (세션 공유를 위한 K8s ConfigMap 사용)
+
+image:
+  repository: your-docker-id/playground-platform  # API 서버 이미지 (FastAPI 백엔드)
+  pullPolicy: Always   # 배포 시 항상 최신 이미지를 Pull (latest 태그 오염 방지)
+  tag: "v17"           # 이미지 버전. CI/CD에서 동적으로 교체하는 것을 권장
+
+# ── UI 서버 이미지 설정 ──────────────────────────────────────
+ui:
+  image:
+    repository: your-docker-id/playground-platform-ui  # UI 서버 이미지 (Nginx + 정적 파일)
+    pullPolicy: Always
+    tag: "v17"
+
+# ── 네임스페이스 설정 ────────────────────────────────────────
+platformNamespace: playground-system  # 플랫폼 컴포넌트(API, UI, Secret, ConfigMap)가 배포될 네임스페이스
+playgroundNamespace: study            # 플레이그라운드 파드(ubuntu-sshd-*)가 배포될 네임스페이스
+
+# KUBE_INSECURE: K8s API 서버 SSL 검증 비활성화 여부
+# "true"로 설정하면 자체서명 인증서 클러스터에서 동작하지만 프로덕션에서는 반드시 "false"
+kubeInsecure: "false"
+
+# ── ServiceAccount 설정 ──────────────────────────────────────
+serviceAccount:
+  create: true                      # true이면 SA + ClusterRole + ClusterRoleBinding을 함께 생성
+  name: "playground-platform"       # SA 이름. Deployment의 serviceAccountName과 일치해야 함
+
+# ── 서비스 설정 ─────────────────────────────────────────────
+service:
+  type: NodePort    # 외부 접속을 위해 NodePort 사용. Ingress가 있으면 ClusterIP로 변경 가능
+  port: 80          # 서비스가 노출하는 포트 (Nginx 컨테이너 포트)
+  nodePort: 30800   # 노드에서 직접 접속할 포트. 충돌 방지를 위해 클러스터 내 유일해야 함
+
+# ── Ingress 설정 ─────────────────────────────────────────────
+ingress:
+  enabled: false     # true로 변경하고 hosts를 실제 도메인으로 설정하면 Ingress가 생성된다
+  className: ""      # Ingress Controller 클래스명 (예: "nginx", "traefik")
+  annotations: {}    # Ingress Controller별 어노테이션 (TLS 설정, timeout 등)
+  hosts:
+    - host: playground.local          # 실제 도메인으로 변경 필요 (placeholder)
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+
+# ── 리소스 제한 ──────────────────────────────────────────────
+resources:
+  api:           # FastAPI 백엔드 컨테이너 리소스
+    requests:
+      cpu: 100m       # 최소 0.1 CPU 보장
+      memory: 128Mi   # 최소 128MB 메모리 보장
+    limits:
+      cpu: 500m       # 최대 0.5 CPU (burst 허용)
+      memory: 512Mi   # 최대 512MB. 플레이그라운드 수에 따라 조정 필요
+  ui:            # Nginx UI 컨테이너 리소스 (정적 파일 서빙이므로 경량)
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ── 관리자 자격증명 ──────────────────────────────────────────
+# [CRITICAL SECURITY WARNING]
+# 아래 값은 기본 개발용이며 절대 프로덕션 환경에서 그대로 사용하지 마십시오.
+# Git에 이 파일의 해시를 직접 커밋하는 대신 반드시 helm-deploy.sh를 사용하여 
+# 런타임에 안전하게 주입해야 합니다.
+adminUser: "admin"
+adminPasswordHash: "$2b$12$PLACEHOLDER_PLEASE_USE_HELM_DEPLOY_SH_FOR_SAFETY"
+# 위 해시는 유효하지 않은 예시입니다. 배포 시 반드시 교체하십시오.

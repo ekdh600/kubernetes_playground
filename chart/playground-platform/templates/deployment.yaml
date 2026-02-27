@@ -1,0 +1,108 @@
+---
+# ── API 서버 Deployment (백엔드) ────────────────────────────────────────────
+# FastAPI 기반 REST API 및 WebSocket 게이트웨이 서버를 Deployment로 배포한다.
+# 플레이그라운드 생성/삭제, 세션 관리, 클러스터 레지스트리 등 모든 비즈니스 로직을 담당한다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}-api
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-api
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-api
+    spec:
+      # serviceAccount.create=true이면 playground-platform SA를 사용하고,
+      # false이면 default SA를 사용한다. 플레이그라운드 관리에 ClusterRole 권한이 필요하므로
+      # 반드시 playground-platform SA를 사용해야 한다.
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- else }}
+      serviceAccountName: default
+      {{- end }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          # command로 CMD를 재정의하는 이유:
+          # 개발 환경에서 사용되던 kube_config.yaml이 이미지에 포함되어 있을 수 있으므로
+          # 서버 시작 전에 강제로 삭제한다. 프로덕션에서는 InCluster 설정만 사용해야 한다.
+          command:
+            - /bin/sh
+            - "-c"
+            - "rm -f kube_config.yaml && uvicorn main:app --host 0.0.0.0 --port 8000"
+
+          ports:
+            - containerPort: 8000
+
+          # playground-secrets K8s Secret의 모든 키를 환경변수로 주입한다.
+          # ADMIN_USER, ADMIN_PASSWORD_HASH, NAMESPACE 등이 포함된다.
+          envFrom:
+            - secretRef:
+                name: {{ .Release.Name }}-secrets
+
+          env:
+            # KUBE_INSECURE: SSL 검증 비활성화 여부. values.yaml에서 제어
+            - name: KUBE_INSECURE
+              value: {{ .Values.kubeInsecure | quote }}
+
+            # NAMESPACE: 플레이그라운드 파드가 배포될 네임스페이스 (기본값: study)
+            - name: NAMESPACE
+              value: {{ .Values.playgroundNamespace | quote }}
+
+            # NAMESPACE_PLATFORM: 플랫폼 컴포넌트 네임스페이스 (Helm release 네임스페이스와 동일)
+            - name: NAMESPACE_PLATFORM
+              value: {{ .Release.Namespace | quote }}
+
+          resources:
+            {{- toYaml .Values.resources.api | nindent 12 }}
+
+          securityContext:
+            allowPrivilegeEscalation: false  # 컨테이너 내에서 권한 상승 불가
+            runAsNonRoot: true               # root 계정으로 실행 불가 (Dockerfile에서 appuser:1000 설정)
+            runAsUser: 1000                  # Dockerfile의 appuser UID와 일치해야 함
+
+---
+# ── UI 서버 Deployment (프론트엔드) ────────────────────────────────────────
+# Nginx 기반 정적 파일 서버 및 API 역방향 프록시를 Deployment로 배포한다.
+# index.html (사용자 터미널 UI), admin.html (관리자 대시보드)를 서빙한다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-ui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}-ui
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-ui
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-ui
+    spec:
+      containers:
+        - name: ui
+          image: "{{ .Values.ui.image.repository }}:{{ .Values.ui.image.tag }}"
+          imagePullPolicy: {{ .Values.ui.image.pullPolicy }}
+          ports:
+            - containerPort: 80
+
+          env:
+            # API_HOST: nginx.conf.template의 ${API_HOST}를 envsubst로 치환하기 위한 변수.
+            # K8s 서비스 DNS 형식: {release-name}-api.{namespace}.svc.cluster.local:8000
+            - name: API_HOST
+              value: "{{ .Release.Name }}-api.{{ .Release.Namespace }}.svc.cluster.local:8000"
+
+          resources:
+            {{- toYaml .Values.resources.ui | nindent 12 }}

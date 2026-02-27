@@ -1,0 +1,35 @@
+# Dockerfile.platform — 플레이그라운드 플랫폼 API 서버 이미지 빌드
+#
+# 결과 이미지 역할:
+#   FastAPI 기반 REST API + WebSocket 게이트웨이 서버를 실행한다.
+#   K8s 클러스터 내에서 플레이그라운드 생성/삭제, 터미널 연결을 처리한다.
+#
+# 이미지 크기 최적화:
+#   python:3.11-slim: 풀 Python 이미지 대비 ~200MB 작은 슬림 버전 사용
+#   --no-cache-dir: pip 캐시를 저장하지 않아 레이어 크기 감소
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 의존성 파일을 소스보다 먼저 복사한다.
+# requirements.txt가 변경되지 않으면 이 레이어는 캐시에서 재사용된다(빌드 속도 향상).
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 애플리케이션 소스 파일만 명시적으로 복사한다.
+# *.py 와일드카드 대신 필요한 파일만 열거하여 테스트/개발 파일이 포함되지 않도록 한다.
+COPY main.py k8s_manager.py session_manager.py cluster_registry.py auth.py key_manager.py utils.py ./
+
+# 보안 강화: 비root 사용자로 실행하여 컨테이너 탈출 시 호스트 피해를 최소화한다.
+# useradd -r: 시스템 계정 (로그인 쉘 없음), -u 1000: 고정 UID
+RUN useradd -r -u 1000 appuser && chown -R appuser /app
+USER appuser
+
+# FastAPI 서버가 수신할 포트 (K8s Service의 targetPort와 일치해야 함)
+EXPOSE 8000
+
+# uvicorn ASGI 서버로 FastAPI 앱을 기동한다.
+# K8s Deployment에서는 CMD가 아닌 Helm 템플릿의 command로 재정의된다.
+# 재정의 이유: kube_config.yaml 파일을 rm -f로 제거한 뒤 서버를 시작하기 위함
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

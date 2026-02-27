@@ -1,0 +1,42 @@
+{{- if .Values.ingress.enabled -}}
+---
+# ── Ingress (선택적, ingress.enabled=true일 때만 생성) ────────────────────────
+# Ingress Controller를 통해 도메인 기반으로 UI 서버를 외부에 노출한다.
+# NodePort 대신 Ingress를 사용하면 SSL/TLS 종료, 경로 기반 라우팅 등이 가능하다.
+#
+# WebSocket 타임아웃 설정:
+# WebSocket 연결이 장기간 유지되어야 하므로 Nginx Ingress 기본 타임아웃(60s)을 3600s로 연장한다.
+# main.py의 ws_to_k8s 1시간 비활성 타임아웃과 일치한다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Nginx Ingress Controller에서 WebSocket 롱 커넥션을 위한 타임아웃 연장
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    {{- with .Values.ingress.annotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                # UI NodePort Service로 트래픽을 전달한다.
+                name: {{ $.Release.Name }}
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}

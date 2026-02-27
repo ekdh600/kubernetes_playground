@@ -1,0 +1,18 @@
+{{- if .Values.serviceAccount.create -}}
+---
+# ── 플랫폼 ClusterRoleBinding ──────────────────────────────────────────────
+# playground-platform ServiceAccount에 위에서 정의한 ClusterRole을 바인딩한다.
+# 이 바인딩으로 API 서버 파드가 플레이그라운드 관리에 필요한 K8s API 권한을 가진다.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-role  # 같은 Helm 릴리스의 ClusterRole을 참조
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name }}  # playground-platform SA
+    namespace: {{ .Release.Namespace }}       # playground-system 네임스페이스의 SA
+{{- end }}

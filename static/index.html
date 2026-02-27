@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Playground</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      font-family: 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+
+    /* Status Bar */
+    #statusBar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8rem;
+      flex-shrink: 0;
+      z-index: 20;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #555;
+      flex-shrink: 0;
+      transition: background .3s;
+    }
+
+    .dot.green {
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    .dot.yellow {
+      background: var(--yellow);
+      box-shadow: 0 0 5px var(--yellow);
+    }
+
+    .dot.red {
+      background: var(--red);
+    }
+
+    #statusText {
+      color: #8b949e;
+      flex: 1;
+    }
+
+    #pgInfo {
+      color: var(--accent);
+      font-size: 0.75rem;
+    }
+
+    #sshToggleBtn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: #8b949e;
+      padding: 3px 12px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      display: none;
+      transition: border-color .2s, color .2s;
+    }
+
+    #sshToggleBtn:hover,
+    #sshToggleBtn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    #sshToggleBtn.visible {
+      display: inline-block;
+    }
+
+    /* SSH Drawer */
+    #sshDrawer {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height .35s ease;
+      flex-shrink: 0;
+    }
+
+    #sshDrawer.open {
+      max-height: 45vh;
+      /* up to 45% of viewport */
+      overflow-y: auto;
+      /* scroll if content exceeds */
+    }
+
+    .drawer-inner {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .section-title {
+      color: var(--accent);
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .section-sub {
+      color: #8b949e;
+      font-size: 0.78rem;
+      margin-top: 2px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
+    }
+
+    .info-card {
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+    }
+
+    .info-card .label {
+      color: #8b949e;
+      font-size: 0.7rem;
+      margin-bottom: 3px;
+    }
+
+    .info-card .value {
+      color: #c9d1d9;
+      font-family: monospace;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .copy-btn {
+      background: none;
+      border: 1px solid transparent;
+      cursor: pointer;
+      color: #8b949e;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      transition: color .15s, border-color .15s;
+      flex-shrink: 0;
+    }
+
+    .copy-btn:hover {
+      color: var(--accent);
+      border-color: var(--border);
+    }
+
+    .copy-btn.copied {
+      color: var(--green);
+    }
+
+    .cmd-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .cmd-label {
+      color: #8b949e;
+      font-size: 0.75rem;
+    }
+
+    .cmd-box {
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cmd-box code {
+      color: var(--green);
+      font-family: monospace;
+      font-size: 0.82rem;
+      flex: 1;
+      word-break: break-all;
+    }
+
+    .cmd-copy-btn {
+      background: #21262d;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: #c9d1d9;
+      cursor: pointer;
+      padding: 4px 12px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: border-color .2s;
+    }
+
+    .cmd-copy-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .win-tip {
+      font-size: 0.75rem;
+      color: #6e7681;
+      background: #010409;
+      border-radius: 5px;
+      padding: 8px 12px;
+      border: 1px solid #21262d;
+      line-height: 1.6;
+    }
+
+    .win-tip strong {
+      color: #8b949e;
+    }
+
+    .win-tip a {
+      color: var(--accent);
+    }
+
+    .win-tip code {
+      color: #c9d1d9;
+      background: #21262d;
+      padding: 0 3px;
+      border-radius: 2px;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding-bottom: 4px;
+    }
+
+    .drawer-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #21262d;
+      color: #c9d1d9;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: border-color .2s;
+    }
+
+    .drawer-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .drawer-btn.danger {
+      color: var(--red);
+    }
+
+    .drawer-btn.danger:hover {
+      border-color: var(--red);
+    }
+
+    /* Terminal */
+    #terminal {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Landing Overlay */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      gap: 16px;
+      padding: 24px;
+    }
+
+    #overlay h1 {
+      color: var(--accent);
+      font-size: 2rem;
+      letter-spacing: -0.5px;
+    }
+
+    #overlay>p {
+      color: #8b949e;
+      font-size: 0.95rem;
+      max-width: 480px;
+      text-align: center;
+    }
+
+    .btn {
+      padding: 10px 26px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: opacity .2s;
+    }
+
+    .btn:hover {
+      opacity: 0.85;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+
+    .btn-secondary {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid var(--border);
+    }
+
+    #msg {
+      color: #8b949e;
+      font-size: 0.85rem;
+      min-height: 20px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .pkey-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      max-width: 520px;
+      width: 100%;
+    }
+
+    .pkey-box label {
+      display: block;
+      color: var(--red);
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .pkey-box textarea {
+      width: 100%;
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: #6e7681;
+      font-family: monospace;
+      font-size: 0.7rem;
+      resize: none;
+      outline: none;
+      height: 90px;
+      padding: 6px 8px;
+    }
+
+    .pkey-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Status Bar -->
+  <div id="statusBar">
+    <div class="dot" id="dot"></div>
+    <span id="statusText">Initializing...</span>
+    <span id="pgInfo"></span>
+    <button id="sshToggleBtn" onclick="toggleDrawer()">[SSH] Connection Info</button>
+  </div>
+
+  <!-- SSH Drawer (scrollable) -->
+  <div id="sshDrawer">
+    <div class="drawer-inner">
+
+      <div>
+        <div class="section-title">[SSH] External Terminal Access</div>
+        <div class="section-sub">You can also connect via your local terminal using SSH in addition to the browser
+          terminal.</div>
+      </div>
+
+      <!-- Hidden spans for JS updateSSHInfo() compatibility -->
+      <span id="sshHostVal" style="display:none"></span>
+      <span id="sshPortVal" style="display:none"></span>
+      <span id="sshUserVal" style="display:none">ubuntu</span>
+
+      <div class="cmd-row">
+        <div class="cmd-label">SSH Command (copy and run in your local terminal)</div>
+        <div class="cmd-box">
+          <code id="sshCmdVal">-</code>
+          <button class="cmd-copy-btn" id="copyCmdBtn" onclick="copySSH(this)">Copy</button>
+        </div>
+      </div>
+
+      <div class="win-tip">
+        <strong>Windows users:</strong>
+        Run the command in WSL, Git Bash, or PowerShell 7+.<br>
+        For <a href="https://www.putty.org" target="_blank">PuTTY</a>, convert the <code>.pem</code> file to
+        <code>.ppk</code> using PuTTYgen first.
+      </div>
+
+      <div class="action-row">
+        <button class="drawer-btn" id="dlKeyBtn" onclick="downloadKey()">Download Private Key (.pem)</button>
+        <button class="drawer-btn danger" onclick="confirmDelete()">Terminate Playground</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="terminal"></div>
+
+  <!-- Landing Overlay -->
+  <div id="overlay">
+    <h1>Kubernetes Playground</h1>
+    <p>Browser-based Kubernetes practice environment. Click the button below to start your playground.</p>
+    <div id="msg"></div>
+    <div id="clusterDiv" style="display:none; margin-bottom: 15px;">
+      <label style="color:#c9d1d9; font-size:0.9rem; margin-right:8px;">Select Cluster:</label>
+      <select id="clusterSelect"
+        style="padding:6px; background:#161b22; color:#c9d1d9; border:1px solid #30363d; border-radius:4px;">
+        <option value="">Loading clusters...</option>
+      </select>
+    </div>
+    <div>
+      <button class="btn btn-primary" id="createBtn" onclick="createPlayground()">Start Playground</button>
+    </div>
+    <div id="pkeySection" style="display:none;" class="pkey-box">
+      <label>[!] Save your SSH Private Key now — it will not be shown again after leaving this page.</label>
+      <textarea id="pkeyText" readonly></textarea>
+      <div class="pkey-actions">
+        <button class="btn btn-secondary" style="padding:6px 14px; font-size:.82rem;" onclick="downloadKey()">Download
+          Key (.pem)</button>
+        <button class="btn btn-secondary" style="padding:6px 14px; font-size:.82rem;" onclick="copyKey(this)">Copy
+          Key</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── xterm.js 터미널 초기화 ────────────────────────────────────────────
+    // xterm.js: 브라우저에서 실제 터미널과 유사한 환경을 제공하는 라이브러리
+    // FitAddon: 터미널 크기를 브라우저 창 크기에 자동으로 맞춘다
+    const term = new Terminal({
+      cursorBlink: true,
+      theme: { background: '#0d1117', foreground: '#c9d1d9', cursor: '#58a6ff' },
+      fontSize: 14, fontFamily: 'Consolas, Monaco, monospace',
+    });
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(document.getElementById('terminal'));
+    fitAddon.fit();
+    // 창 크기 변경 시 터미널도 자동으로 크기를 재조정한다
+    window.onresize = () => fitAddon.fit();
+
+    // ── DOM 요소 참조 ─────────────────────────────────────────────────────
+    const dot = document.getElementById('dot');
+    const statusText = document.getElementById('statusText');
+    const pgInfo = document.getElementById('pgInfo');
+    const overlay = document.getElementById('overlay');
+    const msg = document.getElementById('msg');
+    const sshToggleBtn = document.getElementById('sshToggleBtn');
+    const sshDrawer = document.getElementById('sshDrawer');
+
+    // ── 전역 상태 변수 ────────────────────────────────────────────────────
+    let privateKeyData = null;   // 현재 세션의 SSH 개인키 (메모리에만 보관)
+    let currentPgId = null;      // 현재 활성 플레이그라운드 ID
+    let drawerOpen = false;      // SSH 정보 드로어 열림 상태
+
+    // ── 상태 표시줄 업데이트 ──────────────────────────────────────────────
+    // state: 'green'(연결됨), 'yellow'(대기중), 'red'(오류), ''(기본)
+    function setStatus(state, text) {
+      dot.className = 'dot ' + (state || '');
+      statusText.textContent = text;
+    }
+
+    // ── 클립보드 복사 유틸리티 ────────────────────────────────────────────
+    // navigator.clipboard API를 우선 시도하고, 실패 시 구형 방식(execCommand)으로 폴백
+    function copyText(text, btn) {
+      navigator.clipboard.writeText(text).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy'); ta.remove();
+      });
+      // 복사 성공 피드백: 버튼 텍스트를 1.5초간 "Copied!"로 변경
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+      }
+    }
+
+    function copyById(id, btn) {
+      copyText(document.getElementById(id).textContent.trim(), btn);
+    }
+
+    function copySSH(btn) {
+      copyText(document.getElementById('sshCmdVal').textContent, btn);
+    }
+
+    function copyKey(btn) {
+      copyText(document.getElementById('pkeyText').value, btn);
+    }
+
+    // ── SSH 개인키 세션 저장 ──────────────────────────────────────────────
+    // sessionStorage에 개인키를 저장하여 페이지 새로고침 후에도 키를 복원할 수 있다.
+    // sessionStorage는 탭이 닫히면 자동으로 삭제된다 (localStorage보다 안전).
+    function storeKey(pgId, key) {
+      try { sessionStorage.setItem('pg_key_' + pgId, key); } catch (e) { }
+    }
+
+    function loadKey(pgId) {
+      try { return sessionStorage.getItem('pg_key_' + pgId); } catch (e) { return null; }
+    }
+
+    // ── 개인키 다운로드 ───────────────────────────────────────────────────
+    // 개인키를 .pem 파일로 다운로드한다. 키 출처 우선순위:
+    // 1. 메모리(방금 생성된 경우), 2. sessionStorage(새로고침 후), 3. UI 텍스트박스
+    function downloadKey() {
+      const key = privateKeyData
+        || (currentPgId ? loadKey(currentPgId) : null)
+        || document.getElementById('pkeyText').value;
+      if (!key || key.trim() === '') {
+        alert('Private key not available.\nPlease recreate the playground to get a new key.');
+        return;
+      }
+      // Blob URL을 사용한 파일 다운로드: 서버를 거치지 않고 클라이언트에서 직접 파일 생성
+      const blob = new Blob([key], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'playground_key.pem';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);  // 메모리 해제
+    }
+
+    // ── SSH 정보 드로어 토글 ──────────────────────────────────────────────
+    // SSH 접속 정보 패널을 열고 닫는다.
+    // 드로어 애니메이션(CSS transition)이 완료된 후 터미널 크기를 재조정한다.
+    function toggleDrawer() {
+      drawerOpen = !drawerOpen;
+      sshDrawer.classList.toggle('open', drawerOpen);
+      sshToggleBtn.classList.toggle('active', drawerOpen);
+      setTimeout(() => fitAddon.fit(), 380);  // CSS transition 시간(0.35s) 이후 실행
+    }
+
+    // ── SSH 접속 정보 업데이트 ────────────────────────────────────────────
+    // 플레이그라운드 생성 완료 또는 기존 세션 복원 시 SSH 접속 정보를 UI에 표시한다.
+    function updateSSHInfo(host, port, user) {
+      const h = (host != null) ? String(host) : '-';
+      const p = (port != null) ? String(port) : '-';
+      const u = user || 'ubuntu';
+      // SSH 명령어 조합: 완전한 접속 정보가 있을 때만 명령어 형태로 표시
+      const cmd = (host && port)
+        ? 'ssh ' + u + '@' + h + ' -p ' + p + ' -i playground_key.pem'
+        : 'SSH info not yet available';
+
+      document.getElementById('sshHostVal').textContent = h;
+      document.getElementById('sshPortVal').textContent = p;
+      document.getElementById('sshUserVal').textContent = u;
+      document.getElementById('sshCmdVal').textContent = cmd;
+
+      sshToggleBtn.classList.add('visible');  // [SSH] 버튼을 상태바에 표시
+
+      // 개인키가 있을 때만 다운로드 버튼 표시
+      const hasKey = !!privateKeyData || !!(currentPgId && loadKey(currentPgId));
+      document.getElementById('dlKeyBtn').style.display = hasKey ? 'inline-block' : 'none';
+    }
+
+    // ── 플레이그라운드 삭제 확인 ──────────────────────────────────────────
+    // 사용자 확인 후 DELETE /playground/{id} API를 호출하고 페이지를 새로고침한다.
+    async function confirmDelete() {
+      if (!currentPgId) return;
+      if (!confirm('Terminate playground ' + currentPgId + '?\nAll data will be deleted.')) return;
+      const res = await fetch('/playground/' + currentPgId, { method: 'DELETE' });
+      if (res.ok) {
+        sessionStorage.removeItem('pg_key_' + currentPgId);  // 삭제된 플레이그라운드 키 정리
+        location.reload();
+      }
+      else alert('Delete failed: ' + await res.text());
+    }
+
+    // ── 페이지 초기화 ────────────────────────────────────────────────────
+    // 페이지 로드 시 실행되는 진입점. 다음 우선순위로 초기 상태를 결정한다:
+    // 1. URL 파라미터에 플레이그라운드 정보가 있으면 직접 연결 (관리자 Terminal 버튼 클릭)
+    // 2. GET /playground/me로 기존 세션의 플레이그라운드 확인 및 재연결
+    // 3. 활성 플레이그라운드가 없으면 클러스터 목록을 로드하고 생성 화면을 표시
+    async function init() {
+      setStatus('yellow', 'Checking session...');
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const pgId = urlParams.get('id');
+
+        if (pgId) {
+          // 관리자가 Terminal 버튼을 클릭했거나 직접 URL로 접근한 경우
+          const cid = urlParams.get('cluster_id');
+          const host = urlParams.get('host');
+          const port = urlParams.get('port');
+          const token = urlParams.get('token');
+          const ticket = urlParams.get('ticket');  // 단기 유효 WebSocket 인증 티켓
+          currentPgId = pgId;
+          pgInfo.textContent = 'ID: ' + pgId;
+
+          // Start 오버레이를 숨겨 사용자가 "Start Playground" 버튼을 중복 클릭하지 않도록 한다
+          document.getElementById('overlay').style.display = 'none';
+
+          if (ticket) {
+            // 단기 티켓 방식: 관리자가 ws-ticket API로 발급한 일회용 토큰
+            window.wsTicket = ticket;
+          } else if (token) {
+            // 구형 token 방식: private_key를 URL에 직접 포함 (보안상 권장되지 않음)
+            privateKeyData = token;
+            storeKey(pgId, token);
+          } else {
+            // Legacy: admin.html이 localStorage에 저장한 개인키를 수거하여 sessionStorage로 이전
+            const adminKey = localStorage.getItem('admin_key_' + pgId);
+            if (adminKey) {
+              privateKeyData = adminKey;
+              storeKey(pgId, adminKey);
+              localStorage.removeItem('admin_key_' + pgId);  // localStorage에서 즉시 삭제
+            }
+          }
+
+          if (host && port) {
+            updateSSHInfo(host, port, 'ubuntu');
+          }
+          connectTerminal(pgId, cid);
+          return;
+        }
+
+        // 기존 세션 확인: 쿠키에 session_id가 있으면 서버에서 바인딩된 플레이그라운드를 조회
+        const res = await fetch('/playground/me');
+        const data = await res.json();
+        if (data && data.playground_id) {
+          currentPgId = data.playground_id;
+          pgInfo.textContent = 'ID: ' + data.playground_id;
+          msg.textContent = 'Reconnecting to existing playground...';
+
+          // 페이지 새로고침 전에 저장해둔 개인키를 복원한다
+          const storedKey = loadKey(currentPgId);
+          if (storedKey) { privateKeyData = storedKey; }
+
+          if (data.host) updateSSHInfo(data.host, data.port, data.user);
+
+          // 0.6초 후 연결: UI가 렌더링될 시간을 확보한다
+          setTimeout(() => connectTerminal(data.playground_id, data.cluster_id), 600);
+        } else {
+          setStatus('', 'Ready');
+          await loadClusters();  // 클러스터 선택 드롭다운 로드
+        }
+      } catch (e) {
+        setStatus('', 'Ready');
+        await loadClusters();
+      }
+    }
+
+    // ── 클러스터 목록 로드 ────────────────────────────────────────────────
+    // GET /clusters API에서 사용 가능한 클러스터 목록을 가져와 드롭다운에 표시한다.
+    // 클러스터가 없으면 "Start" 버튼을 비활성화하여 사용자 혼란을 방지한다.
+    async function loadClusters() {
+      try {
+        const res = await fetch('/clusters');
+        if (res.ok) {
+          const clusters = await res.json();
+          const select = document.getElementById('clusterSelect');
+          if (clusters.length > 0) {
+            select.innerHTML = '<option value="" disabled selected>Select a cluster...</option>' + clusters.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            document.getElementById('clusterDiv').style.display = 'block';
+          } else {
+            select.innerHTML = `<option value="">No clusters registered</option>`;
+            document.getElementById('clusterDiv').style.display = 'block';
+            document.getElementById('createBtn').disabled = true;
+          }
+        }
+      } catch (e) { }
+    }
+
+    // ── 플레이그라운드 생성 ───────────────────────────────────────────────
+    // POST /playground API를 호출하여 새 플레이그라운드를 생성한다.
+    // 이미 플레이그라운드가 있는 경우(409) 기존 환경으로 재연결한다.
+    async function createPlayground() {
+      const clusterId = document.getElementById('clusterSelect')?.value;
+      if (!clusterId) {
+        msg.textContent = 'Error: Please select a valid cluster.';
+        msg.style.color = 'var(--red)';
+        return;
+      }
+      document.getElementById('createBtn').disabled = true;
+      msg.innerHTML = '<span class="spinner"></span>Provisioning playground... (this may take 10-30 seconds)';
+
+      try {
+        const res = await fetch('/playground', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cluster_id: clusterId })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          // 409: 이미 활성 플레이그라운드가 있음 → 재연결 처리
+          if (data.detail && data.detail.error === 'already_exists') {
+            msg.textContent = 'Reconnecting to existing playground...';
+            currentPgId = data.detail.playground_id;
+            connectTerminal(data.detail.playground_id, data.detail.cluster_id);
+            return;
+          }
+          throw new Error(JSON.stringify(data.detail));
+        }
+
+        currentPgId = data.id;
+        privateKeyData = data.private_key;
+        storeKey(data.id, data.private_key);  // 새로고침 대비 sessionStorage에 키 저장
+        pgInfo.textContent = 'ID: ' + data.id;
+
+        updateSSHInfo(data.host, data.port, data.user || 'ubuntu');
+
+        // 개인키 표시 영역: 이 화면에서만 개인키를 확인할 수 있으므로 저장을 안내한다
+        const pkey = document.getElementById('pkeyText');
+        pkey.value = data.private_key;
+        document.getElementById('pkeySection').style.display = 'block';
+
+        msg.textContent = 'Playground created (' + data.id + '). Connecting...';
+        // 1.2초 후 WebSocket 연결: 개인키를 저장할 시간을 제공한다
+        setTimeout(() => connectTerminal(data.id, data.cluster_id), 1200);
+
+      } catch (e) {
+        msg.textContent = 'Error: ' + e.message;
+        msg.style.color = 'var(--red)';
+        document.getElementById('createBtn').disabled = false;
+      }
+    }
+
+    // ── WebSocket 터미널 연결 ─────────────────────────────────────────────
+    // wss:// (HTTPS) 또는 ws:// (HTTP) 프로토콜로 백엔드 WebSocket 엔드포인트에 연결한다.
+    // 인증 방식 우선순위:
+    //   1. ticket 파라미터 (단기 일회용 토큰, 가장 안전)
+    //   2. token 파라미터 (private_key, URL 노출 주의)
+    function connectTerminal(playgroundId, clusterId) {
+      if (!clusterId) {
+        setStatus('red', 'Cluster ID missing');
+        return;
+      }
+      // 현재 페이지 프로토콜에 따라 ws 또는 wss를 선택한다
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      let wsUrl = protocol + '//' + location.host + '/ws/' + playgroundId
+        + '?cluster_id=' + clusterId;
+
+      // 소유권 검증 토큰 추가
+      if (window.wsTicket) {
+        wsUrl += '&ticket=' + encodeURIComponent(window.wsTicket);
+      } else if (privateKeyData) {
+        wsUrl += '&token=' + encodeURIComponent(privateKeyData);
+      }
+
+      setStatus('yellow', 'Connecting...');
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => setStatus('yellow', 'Waiting for pod...');
+
+      ws.onmessage = function (event) {
+        const d = event.data;
+        // 서버에서 연결 완료 메시지를 수신하면 오버레이를 숨기고 터미널 포커스
+        if (d.indexOf('Connected to Playground') !== -1 || d.indexOf('Connected!') !== -1) {
+          overlay.style.display = 'none';
+          setStatus('green', 'Connected - ' + playgroundId);
+          if (!drawerOpen) toggleDrawer();  // SSH 정보 드로어 자동 열기
+          term.focus();
+        } else if (d.indexOf('timed out') !== -1 || d.indexOf('not found') !== -1) {
+          setStatus('red', d.trim());
+        }
+        term.write(d);  // 수신된 모든 데이터를 터미널에 출력
+      };
+
+      ws.onclose = function () {
+        setStatus('red', 'Disconnected');
+        // ANSI 빨간색으로 연결 종료 메시지 출력 (\x1b[31m: 빨간색, \x1b[0m: 초기화)
+        term.write('\r\n\x1b[31m*** Connection closed ***\x1b[0m\r\n');
+      };
+
+      ws.onerror = function () { setStatus('red', 'Connection error'); };
+
+      // 키보드 입력을 WebSocket으로 전송 (OPEN 상태일 때만 전송)
+      term.onData(function (d) { if (ws.readyState === WebSocket.OPEN) ws.send(d); });
+    }
+
+    // 페이지 로드 시 초기화 실행
+    init();
+  </script>
+</body>
+
+</html>

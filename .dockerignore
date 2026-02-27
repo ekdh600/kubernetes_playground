@@ -1,0 +1,5 @@
+test_*.py
+ssh_test.py
+admin_auth_test.py
+verify_*.py
+debug_*.py

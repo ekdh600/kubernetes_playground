@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playground Admin</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --accent: #58a6ff;
+            --red: #f85149;
+            --green: #3fb950;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', sans-serif;
+            padding: 24px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 4px;
+            color: var(--accent);
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logout-btn {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            color: var(--muted);
+            padding: 3px 12px;
+            cursor: pointer;
+            font-size: 0.78rem;
+            transition: border-color .2s, color .2s;
+        }
+
+        .logout-btn:hover {
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            background: var(--surface);
+            color: var(--muted);
+            font-size: 0.9rem;
+            transition: all .2s;
+        }
+
+        .tab.active {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .card h3 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 4px;
+            margin-top: 10px;
+        }
+
+        input[type=text],
+        input[type=password],
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        textarea {
+            font-family: monospace;
+            font-size: 0.8rem;
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            border-color: var(--accent);
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: opacity .2s;
+        }
+
+        .btn:hover {
+            opacity: 0.85;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+            font-weight: 600;
+        }
+
+        .btn-terminal {
+            background: #1a3a22;
+            color: var(--green);
+            border: 1px solid #2a5a32;
+        }
+
+        .btn-terminal:hover {
+            background: #2a5a32;
+        }
+
+        .btn-danger {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .btn-success {
+            background: var(--green);
+            color: #000;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+
+        th {
+            color: var(--muted);
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-weight: 500;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: background .2s;
+        }
+
+        th:hover {
+            background: rgba(88, 166, 255, 0.1);
+        }
+
+        .sort-icon::after {
+            content: ' ↕';
+            opacity: 0.3;
+            font-size: 0.8rem;
+        }
+
+        .sort-asc::after {
+            content: ' ↑';
+            opacity: 1;
+            color: var(--accent);
+        }
+
+        .sort-desc::after {
+            content: ' ↓';
+            opacity: 1;
+            color: var(--accent);
+        }
+
+        .filter-row input {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            margin-top: 4px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            width: 100%;
+            outline: none;
+        }
+
+        .filter-row input:focus {
+            border-color: var(--accent);
+        }
+
+        .bulk-actions {
+            margin-bottom: 12px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .checkbox-col {
+            width: 40px;
+            text-align: center;
+        }
+
+        input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #21262d;
+            vertical-align: middle;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            background: #234;
+            color: var(--accent);
+        }
+
+        .badge.green {
+            background: #1a3a22;
+            color: var(--green);
+        }
+
+        .msg {
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            display: none;
+        }
+
+        .msg.info {
+            background: #1a2a40;
+            color: var(--accent);
+            display: block;
+        }
+
+        .msg.error {
+            background: #3a1a1a;
+            color: var(--red);
+            display: block;
+        }
+
+        .msg.success {
+            background: #1a3a22;
+            color: var(--green);
+            display: block;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .row>* {
+            flex: 1 1 200px;
+        }
+
+        /* Login overlay */
+        #login-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .login-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            width: 340px;
+            text-align: center;
+        }
+
+        .login-card h2 {
+            color: var(--accent);
+            margin-bottom: 8px;
+        }
+
+        .login-card .sub {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+        }
+
+        .login-card input {
+            margin-bottom: 12px;
+        }
+
+        .login-err {
+            color: var(--red);
+            font-size: 0.82rem;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .login-spin {
+            display: none;
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Login Overlay -->
+    <div id="login-overlay">
+        <div class="login-card">
+            <h2>Admin Login</h2>
+            <p class="sub">Kubernetes Playground Platform</p>
+            <label>Username</label>
+            <input type="text" id="login-user" placeholder="admin" autocomplete="username">
+            <label>Password</label>
+            <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"
+                onkeydown="if(event.key==='Enter') doLogin()">
+            <button class="btn btn-primary" style="width:100%; margin-top:8px;" onclick="doLogin()">Login</button>
+            <div class="login-err" id="login-err">Invalid credentials</div>
+            <div class="login-spin" id="login-spin">Verifying...</div>
+        </div>
+    </div>
+
+    <h1>Admin Dashboard</h1>
+    <div class="subtitle">
+        Kubernetes Playground Platform Management
+        <button class="logout-btn" onclick="doLogout()">Logout</button>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('playgrounds')">Playgrounds</div>
+        <div class="tab" onclick="switchTab('clusters')">Clusters</div>
+        <div class="tab" onclick="switchTab('create')">Create Playground</div>
+    </div>
+
+    <!-- Playgrounds Panel -->
+    <div class="panel active" id="tab-playgrounds">
+        <div style="margin-bottom:12px;">
+            <button class="btn btn-primary" onclick="loadPlaygrounds()">Refresh</button>
+        </div>
+        <div class="msg" id="pg-msg"></div>
+        <div class="bulk-actions">
+            <button class="btn btn-secondary" onclick="bulkEditRbac()"
+                style="font-size: 0.75rem; padding: 4px 10px;">Bulk Edit RBAC</button>
+            <button class="btn btn-danger" onclick="bulkDelete()" style="font-size: 0.75rem; padding: 4px 10px;">Bulk
+                Delete</button>
+            <span id="selection-count" style="font-size:0.8rem; color:var(--muted); margin-left:8px;"></span>
+        </div>
+        <div class="card" style="padding:0; overflow:hidden;">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="checkbox-col" onclick="event.stopPropagation()"><input type="checkbox"
+                                id="select-all-pg" onclick="toggleSelectAll(this)"></th>
+                        <th onclick="setSort('id')" class="sort-icon" id="sort-id">ID</th>
+                        <th onclick="setSort('cluster')" class="sort-icon" id="sort-cluster">Cluster</th>
+                        <th onclick="setSort('namespaces')" class="sort-icon" id="sort-namespaces">Namespace</th>
+                        <th onclick="setSort('verbs')" class="sort-icon" id="sort-verbs">Verb</th>
+                        <th onclick="setSort('created_at')" class="sort-icon" id="sort-created_at">Created At</th>
+                        <th colspan="3" style="cursor:default;">Actions</th>
+                    </tr>
+                    <tr class="filter-row">
+                        <th></th>
+                        <th><input type="text" placeholder="Filter ID..." oninput="setFilter('id', this.value)"></th>
+                        <th><input type="text" placeholder="Filter Cluster..."
+                                oninput="setFilter('cluster', this.value)"></th>
+                        <th><input type="text" placeholder="Filter Namespace..."
+                                oninput="setFilter('namespaces', this.value)"></th>
+                        <th><input type="text" placeholder="Filter Verb..." oninput="setFilter('verbs', this.value)">
+                        </th>
+                        <th><input type="text" placeholder="Filter Date..."
+                                oninput="setFilter('created_at', this.value)"></th>
+                        <th colspan="3"></th>
+                    </tr>
+                </thead>
+                <tbody id="pg-tbody">
+                    <tr>
+                        <td colspan="4" style="color:var(--muted);">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Clusters Panel -->
+    <div class="panel" id="tab-clusters">
+        <div class="card">
+            <h3>Register New Cluster</h3>
+            <div class="msg" id="cl-msg"></div>
+            <div class="row">
+                <div>
+                    <label>Cluster Name</label>
+                    <input type="text" id="cl-name" placeholder="e.g. production-cluster">
+                </div>
+            </div>
+            <label>Kubeconfig YAML</label>
+            <textarea id="cl-kubeconfig" placeholder="Paste kubeconfig YAML here..."></textarea>
+            <button class="btn btn-success" style="margin-top:12px;" onclick="registerCluster()">Register
+                Cluster</button>
+        </div>
+        <div class="card" style="padding:0; overflow:hidden;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Registered</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="cl-tbody">
+                    <tr>
+                        <td colspan="4" style="color:var(--muted);">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- Create Playground Panel -->
+    <div class="panel" id="tab-create">
+        <div class="card">
+            <h3>Create Custom Playground</h3>
+            <p style="color:var(--muted); font-size:.82rem; margin-bottom:12px;">Deploy a playground with specific RBAC
+                permissions.</p>
+            <div class="msg" id="cr-msg"></div>
+
+            <label>Target Cluster</label>
+            <select id="cr-cluster">
+                <option value="">Select a Cluster</option>
+            </select>
+
+            <label>Namespaces</label>
+            <div class="checkbox-container"
+                style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 8px; border-radius: 4px; margin-bottom: 12px; background: rgba(0,0,0,0.2);">
+                <label style="display:block; font-weight:normal; margin-bottom:4px;"><input type="checkbox" value="*"
+                        id="cr-ns-all"> <b style="color:var(--primary);">* (All Namespaces)</b></label>
+                <label style="display:block; font-weight:normal; margin-bottom:4px;"><input type="checkbox"
+                        value="sandbox" id="cr-ns-sandbox" checked> <i>sandbox (Dedicated)</i></label>
+                <div id="cr-namespaces-list"></div>
+            </div>
+
+            <label>Verbs (comma-separated, * for all)</label>
+            <input type="text" id="cr-verbs" value="get, list, watch" placeholder="get, list, watch, create, delete">
+
+            <button class="btn btn-success" style="margin-top:16px;" onclick="createPlayground()">Create Custom
+                Playground</button>
+        </div>
+    </div>
+
+    <!-- Edit RBAC Modal -->
+    <div id="edit-rbac-modal"
+        style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:200; align-items:center; justify-content:center;">
+        <div class="card" style="width: 400px; position:relative;">
+            <h3 id="edit-modal-title">Edit RBAC</h3>
+            <p class="subtitle" style="margin-bottom:12px;">Dynamic Role Binding update without pod restart.</p>
+            <div class="msg" id="edit-msg"></div>
+            <input type="hidden" id="edit-id">
+            <input type="hidden" id="edit-cluster">
+
+            <label>Namespaces</label>
+            <div class="checkbox-container"
+                style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 8px; border-radius: 4px; margin-bottom: 12px; background: rgba(0,0,0,0.2);">
+                <label style="display:block; font-weight:normal; margin-bottom:4px;"><input type="checkbox" value="*"
+                        id="edit-ns-all"> <b style="color:var(--primary);">* (All Namespaces)</b></label>
+                <label style="display:block; font-weight:normal; margin-bottom:4px;"><input type="checkbox"
+                        value="sandbox" id="edit-ns-sandbox"> <i>sandbox (Dedicated)</i></label>
+                <div id="edit-namespaces-list"></div>
+            </div>
+
+            <label>Verbs</label>
+            <input type="text" id="edit-verbs" placeholder="get, list, watch">
+
+            <div style="display:flex; gap:8px; margin-top:16px;">
+                <button class="btn btn-primary" onclick="submitEditRbac()">Save Changes</button>
+                <button class="btn btn-secondary" onclick="closeEditRbac()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        // ── 전역 상태 변수 ───────────────────────────────────────────────────
+        // 모든 관리자 API 요청에 공통으로 사용하는 헤더
+        function authHeaders() {
+            return {
+                'Content-Type': 'application/json'
+            };
+        }
+
+        // ─── 로그인 ──────────────────────────────────────────────────────────
+        async function doLogin() {
+            const username = document.getElementById('login-user').value.trim();
+            const password = document.getElementById('login-pass').value;
+            if (!username || !password) return;
+
+            document.getElementById('login-err').style.display = 'none';
+            document.getElementById('login-spin').style.display = 'block';
+
+            try {
+                const res = await fetch('/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                    credentials: 'include'
+                });
+
+                document.getElementById('login-spin').style.display = 'none';
+
+                if (!res.ok) {
+                    document.getElementById('login-err').style.display = 'block';
+                    return;
+                }
+
+                document.getElementById('login-overlay').style.display = 'none';
+                loadAll();
+            } catch (e) {
+                document.getElementById('login-spin').style.display = 'none';
+                document.getElementById('login-err').style.display = 'block';
+            }
+        }
+
+        // ─── 자동 로그인 확인 ────────────────────────────────────────────────
+        async function tryAutoLogin() {
+            const res = await fetch('/admin/clusters', { credentials: 'include' });
+            if (res.ok) {
+                document.getElementById('login-overlay').style.display = 'none';
+                loadAll();
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        // ─── 로그아웃 ────────────────────────────────────────────────────────
+        async function doLogout() {
+            await fetch('/admin/logout', { method: 'POST', credentials: 'include' });
+            document.getElementById('login-overlay').style.display = 'flex';
+            document.getElementById('login-user').value = '';
+            document.getElementById('login-pass').value = '';
+        }
+
+        // ─── 탭 전환 ─────────────────────────────────────────────────────────
+        // 탭 버튼 클릭 시 해당 패널만 표시하고 나머지는 숨긴다.
+        function switchTab(tab) {
+            const keys = ['playgrounds', 'clusters', 'create'];
+            document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', keys[i] === tab));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+        }
+
+        // 메시지 표시 유틸리티: info/success/error 타입에 따라 스타일 적용
+        // error 타입은 자동으로 사라지지 않아 사용자가 인지하도록 한다.
+        function showMsg(id, text, type = 'info') {
+            const el = document.getElementById(id);
+            el.textContent = text;
+            el.className = `msg ${type}`;
+            if (type !== 'error') setTimeout(() => el.className = 'msg', 4000);
+        }
+
+        // ─── 플레이그라운드 목록 로드 ─────────────────────────────────────────
+        // GET /admin/playgrounds API로 전체 플레이그라운드 목록을 조회한다.
+        // 401 응답 시 자동 로그아웃하여 만료된 세션을 처리한다.
+        async function loadPlaygrounds() {
+            try {
+                const res = await fetch('/admin/playgrounds', { credentials: 'include', headers: authHeaders() });
+                if (res.status === 401) { doLogout(); return; }
+                allPlaygrounds = await res.json();
+                renderPlaygrounds();  // 메모리의 전체 목록에서 필터/정렬을 적용하여 렌더링
+            } catch (e) {
+                console.error("Load failed:", e);
+            }
+        }
+
+        // ─── 플레이그라운드 테이블 렌더링 ────────────────────────────────────
+        // allPlaygrounds 배열에서 현재 필터/정렬 설정을 적용하여 테이블을 새로 그린다.
+        // 서버 재요청 없이 클라이언트 측에서 필터링과 정렬을 처리한다.
+        function renderPlaygrounds() {
+            const tbody = document.getElementById('pg-tbody');
+
+            // 1단계: 각 컬럼의 필터 텍스트로 부분 문자열 매칭 필터링
+            let filtered = allPlaygrounds.filter(p => {
+                return Object.keys(currentFilters).every(key => {
+                    const val = (p[key] || '').toLowerCase();
+                    const filterVal = currentFilters[key].toLowerCase();
+                    return val.includes(filterVal);
+                });
+            });
+
+            // 2단계: 선택된 컬럼/방향으로 정렬
+            filtered.sort((a, b) => {
+                let v1 = a[currentSort.column] || '';
+                let v2 = b[currentSort.column] || '';
+                if (typeof v1 === 'string') v1 = v1.toLowerCase();
+                if (typeof v2 === 'string') v2 = v2.toLowerCase();
+
+                if (v1 < v2) return currentSort.direction === 'asc' ? -1 : 1;
+                if (v1 > v2) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            if (!filtered.length) {
+                tbody.innerHTML = '<tr><td colspan="9" style="color:var(--muted); text-align:center; padding:20px;">No playgrounds found</td></tr>';
+                updateSelectionUI();
+                return;
+            }
+
+            // 행마다 체크박스 상태를 selectedPgIds Set과 동기화한다
+            tbody.innerHTML = filtered.map(p => {
+                const isSelected = selectedPgIds.has(p.id) ? 'checked' : '';
+                return `
+                <tr>
+                    <td class="checkbox-col"><input type="checkbox" value="${p.id}" data-cluster="${p.cluster_id}" onchange="toggleSelect('${p.id}', this)" ${isSelected}></td>
+                    <td><span class="badge">${p.id}</span></td>
+                    <td><span class="badge green">${p.cluster}</span></td>
+                    <td><span class="badge" style="background:#2a1a3a;color:#a371f7;">${p.namespaces || 'sandbox-only'}</span></td>
+                    <td><span class="badge" style="background:#3a2a1a;color:#f7a371;">${p.verbs || '*'}</span></td>
+                    <td style="color:var(--muted); font-size:.8rem;">${p.created_at || '-'}</td>
+                    <td><button class="btn btn-secondary" style="font-size:0.75rem; padding:4px 8px;" onclick="openEditRbac('${p.id}', '${p.cluster_id}', '${p.namespaces || ''}', '${p.verbs || ''}')">Edit</button></td>
+                    <td><button class="btn btn-terminal" onclick="openTerminal('${p.id}','${p.cluster_id}')">Terminal</button></td>
+                    <td><button class="btn btn-danger" onclick="delPlayground('${p.id}','${p.cluster_id}')">Delete</button></td>
+                </tr>`;
+            }).join('');
+
+            updateSelectionUI();
+        }
+
+        // 컬럼 필터 값 변경 시 즉시 재렌더링 (서버 요청 없이 클라이언트 측 필터링)
+        function setFilter(column, value) {
+            currentFilters[column] = value;
+            renderPlaygrounds();
+        }
+
+        // 컬럼 헤더 클릭 시 정렬 방향 토글 (같은 컬럼: asc↔desc, 다른 컬럼: asc로 시작)
+        function setSort(column) {
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc';
+            }
+            // 현재 정렬 컬럼에 화살표 아이콘 CSS 클래스 적용
+            document.querySelectorAll('th.sort-icon').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+            const activeTh = document.getElementById('sort-' + column);
+            if (activeTh) activeTh.classList.add('sort-' + currentSort.direction);
+
+            renderPlaygrounds();
+        }
+
+        // 개별 체크박스 선택/해제: selectedPgIds Set에 추가/제거
+        function toggleSelect(id, el) {
+            if (el.checked) selectedPgIds.add(id);
+            else selectedPgIds.delete(id);
+            updateSelectionUI();
+        }
+
+        // 전체 선택/해제: 현재 보이는 모든 행의 체크박스를 동기화
+        function toggleSelectAll(el) {
+            const checks = document.querySelectorAll('#pg-tbody input[type="checkbox"]');
+            checks.forEach(c => {
+                c.checked = el.checked;
+                if (el.checked) selectedPgIds.add(c.value);
+                else selectedPgIds.delete(c.value);
+            });
+            updateSelectionUI();
+        }
+
+        // 선택된 항목 수를 표시하고 헤더 체크박스 상태를 동기화한다
+        function updateSelectionUI() {
+            const count = selectedPgIds.size;
+            const el = document.getElementById('selection-count');
+            el.textContent = count > 0 ? `${count} selected` : '';
+
+            const visibleChecks = document.querySelectorAll('#pg-tbody input[type="checkbox"]');
+            const allChecked = visibleChecks.length > 0 && Array.from(visibleChecks).every(c => c.checked);
+            document.getElementById('select-all-pg').checked = allChecked;
+        }
+
+        // ─── 일괄 삭제 ───────────────────────────────────────────────────────
+        // 선택된 플레이그라운드를 클러스터별로 그룹화하여 bulk-delete API에 전달한다.
+        async function bulkDelete() {
+            if (selectedPgIds.size === 0) { alert('No playgrounds selected'); return; }
+            if (!confirm(`Delete ${selectedPgIds.size} playgrounds?`)) return;
+
+            // 클러스터별 그룹화: 같은 클러스터의 플레이그라운드는 한 번의 API 호출로 처리
+            const targets = {};
+            selectedPgIds.forEach(id => {
+                const p = allPlaygrounds.find(item => item.id === id);
+                if (p) {
+                    if (!targets[p.cluster_id]) targets[p.cluster_id] = [];
+                    targets[p.cluster_id].push(id);
+                }
+            });
+
+            showMsg('pg-msg', 'Bulk deleting...', 'info');
+            const res = await fetch('/admin/playgrounds/bulk-delete', {
+                method: 'POST',
+                credentials: 'include',
+                headers: authHeaders(),
+                body: JSON.stringify({ targets })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                showMsg('pg-msg', `Deleted ${data.deleted.length} playgrounds. Errors: ${data.errors.length}`, 'success');
+                selectedPgIds.clear();
+                loadPlaygrounds();
+            } else {
+                showMsg('pg-msg', 'Bulk delete failed', 'error');
+            }
+        }
+
+        // ─── 단일 플레이그라운드 삭제 ────────────────────────────────────────
+        async function delPlayground(id, clusterId) {
+            if (!confirm('Delete playground ' + id + '?')) return;
+            const res = await fetch('/admin/playgrounds/' + id + '?cluster_id=' + clusterId, {
+                method: 'DELETE', credentials: 'include', headers: authHeaders()
+            });
+            if (!res.ok) { showMsg('pg-msg', await res.text(), 'error'); return; }
+            showMsg('pg-msg', 'Playground ' + id + ' deleted.', 'success');
+            selectedPgIds.delete(id);  // 삭제된 항목을 선택 집합에서도 제거
+            loadPlaygrounds();
+        }
+
+        // ─── 관리자 Terminal 열기 ────────────────────────────────────────────
+        // SSH 접속 정보와 단기 WebSocket 티켓을 조회한 후 index.html을 새 탭으로 연다.
+        // 티켓 방식: private_key를 URL에 직접 노출하지 않아 보안상 더 안전하다.
+        async function openTerminal(pgId, clusterId) {
+            let host = '', port = '';
+            try {
+                // SSH 접속 정보 조회 (host, port, private_key)
+                const r = await fetch('/admin/playgrounds/' + pgId + '/ssh?cluster_id=' + clusterId,
+                    { credentials: 'include', headers: authHeaders() });
+                if (r.ok) {
+                    const info = await r.json();
+                    host = info.host || '';
+                    port = info.port || '';
+                    let url = '/?id=' + pgId + '&cluster_id=' + clusterId;
+                    if (host) url += '&host=' + encodeURIComponent(host);
+                    if (port) url += '&port=' + encodeURIComponent(port);
+
+                    // 단기 유효 WebSocket 인증 티켓 발급 시도
+                    // 티켓은 서버에서 관리되며 일회성으로 사용된다 (더 안전한 방식)
+                    try {
+                        const tRes = await fetch('/admin/playgrounds/' + pgId + '/ws-ticket?cluster_id=' + clusterId, {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: authHeaders()
+                        });
+                        if (tRes.ok) {
+                            const tData = await tRes.json();
+                            if (tData.ticket) url += '&ticket=' + encodeURIComponent(tData.ticket);
+                        }
+                    } catch (e) {
+                        console.error("Failed to generate ws ticket:", e);
+                    }
+
+                    // index.html의 init()에서 세션 쿠키 확인 시 인증이 필요하므로
+                    // 미리 /playground/me를 호출하여 세션 쿠키를 초기화한다
+                    try { await fetch(url, { credentials: 'include' }); } catch (e) { }
+
+                    window.open(url, '_blank');  // 새 탭에서 터미널 UI 열기
+                }
+            } catch (e) { }
+        }
+
+        // ─── 클러스터 관리 ───────────────────────────────────────────────────
+
+        // 클러스터 목록 로드: 테이블과 "Create Playground" 탭의 클러스터 드롭다운을 동시에 갱신
+        async function loadClusters() {
+            const res = await fetch('/admin/clusters', { credentials: 'include', headers: authHeaders() });
+            if (res.status === 401) { doLogout(); return; }
+            const data = await res.json();
+            const tbody = document.getElementById('cl-tbody');
+            const sel = document.getElementById('cr-cluster');
+            sel.innerHTML = '<option value="">Select a Cluster</option>';
+
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);">No clusters registered</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(c => {
+                const actionBtn = '<button class="btn btn-danger" onclick="deleteCluster(\'' + c.id + '\')">Remove</button>';
+                const badge = '<span class="badge">' + c.id + '</span>';
+                return '<tr>'
+                    + '<td>' + badge + '</td>'
+                    + '<td>' + c.name + '</td>'
+                    + '<td style="color:var(--muted); font-size:.8rem;">' + c.created_at + '</td>'
+                    + '<td>' + actionBtn + '</td>'
+                    + '</tr>';
+            }).join('');
+
+            // Create Playground 탭의 클러스터 드롭다운에 옵션 추가
+            data.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id; opt.textContent = c.name;
+                sel.appendChild(opt);
+            });
+            if (sel.value) {
+                fetchNamespaces(sel.value, 'cr-namespaces-list', ['sandbox']);
+            }
+        }
+
+        // 클러스터의 네임스페이스 목록 조회 및 체크박스 렌더링
+        // RBAC 설정 시 네임스페이스를 선택할 수 있도록 동적으로 체크박스 목록을 생성한다.
+        async function fetchNamespaces(clusterId, listId, checkedValues = []) {
+            const listEl = document.getElementById(listId);
+            listEl.innerHTML = '<span style="color:var(--muted); font-size:0.8rem;">Loading namespaces...</span>';
+            try {
+                const res = await fetch(`/admin/clusters/${clusterId}/namespaces`, { credentials: 'include', headers: authHeaders() });
+                if (!res.ok) throw new Error('Failed to fetch');
+                const data = await res.json();
+
+                // "*" (전체)가 선택된 경우 모든 네임스페이스를 체크 상태로 표시
+                let isAllChecked = checkedValues.includes('*');
+
+                listEl.innerHTML = data.namespaces.map(ns => {
+                    const isChecked = isAllChecked || checkedValues.includes(ns) ? 'checked' : '';
+                    return `<label style="display:block; font-weight:normal; margin-bottom:4px;"><input type="checkbox" value="${ns}" class="ns-check" ${isChecked}> ${ns}</label>`;
+                }).join('');
+            } catch (e) {
+                listEl.innerHTML = '<span style="color:#f77; font-size:0.8rem;">Error loading namespaces</span>';
+            }
+        }
+
+        // 새 클러스터 등록: kubeconfig YAML을 POST /admin/clusters로 전송
+        async function registerCluster() {
+            const name = document.getElementById('cl-name').value.trim();
+            const kubeconfig = document.getElementById('cl-kubeconfig').value.trim();
+            if (!name || !kubeconfig) { showMsg('cl-msg', 'Name and kubeconfig required', 'error'); return; }
+            showMsg('cl-msg', 'Registering...', 'info');
+            const res = await fetch('/admin/clusters', {
+                method: 'POST', credentials: 'include', headers: authHeaders(),
+                body: JSON.stringify({ name, kubeconfig })
+            });
+            if (!res.ok) { showMsg('cl-msg', await res.text(), 'error'); return; }
+            const data = await res.json();
+            showMsg('cl-msg', `Cluster "${data.name}" registered (ID: ${data.id})`, 'success');
+            document.getElementById('cl-name').value = '';
+            document.getElementById('cl-kubeconfig').value = '';
+            loadClusters();
+        }
+
+        // 클러스터 삭제: 해당 클러스터의 Secret을 삭제하고 인메모리 캐시를 무효화한다
+        async function deleteCluster(id) {
+            if (!confirm(`Remove cluster ${id}?`)) return;
+            const res = await fetch(`/admin/clusters/${id}`, { method: 'DELETE', credentials: 'include', headers: authHeaders() });
+            if (!res.ok) { showMsg('cl-msg', await res.text(), 'error'); return; }
+            showMsg('cl-msg', 'Cluster removed.', 'success');
+            loadClusters();
+        }
+
+        // ─── 커스텀 플레이그라운드 생성 ────────────────────────────────────
+        // 관리자가 네임스페이스 범위와 허용 동사를 직접 지정하여 플레이그라운드를 생성한다.
+        // POST /admin/playgrounds API 사용 (일반 사용자용 /playground와 다른 엔드포인트)
+        async function createPlayground() {
+            const clusterId = document.getElementById('cr-cluster').value;
+            if (!clusterId) {
+                showMsg('cr-msg', 'Please select a cluster.', 'error');
+                return;
+            }
+            const verbsInput = document.getElementById('cr-verbs').value.trim();
+
+            // 네임스페이스 선택 로직:
+            // - "All (*)" 체크박스가 선택되면 namespaces=["*"]으로 전송 (ClusterRole 생성)
+            // - 개별 네임스페이스 선택 시 해당 네임스페이스마다 Role+RoleBinding 생성
+            let namespaces = [];
+            if (document.getElementById('cr-ns-all').checked) {
+                namespaces.push('*');
+            } else {
+                if (document.getElementById('cr-ns-sandbox').checked) namespaces.push('sandbox');
+                const checks = document.querySelectorAll('#cr-namespaces-list .ns-check:checked');
+                checks.forEach(c => namespaces.push(c.value));
+            }
+            if (namespaces.length === 0) namespaces = ['sandbox'];  // 최소 sandbox는 포함
+
+            // 쉼표 구분 동사 문자열을 배열로 파싱 (공백 제거)
+            const verbs = verbsInput ? verbsInput.split(',').map(s => s.trim()) : ['*'];
+
+            showMsg('cr-msg', 'Provisioning Custom Playground...', 'info');
+            const res = await fetch('/admin/playgrounds', {
+                method: 'POST', credentials: 'include', headers: authHeaders(),
+                body: JSON.stringify({ cluster_id: clusterId, namespaces, verbs })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                const err = data.detail?.error === 'already_exists'
+                    ? `Already exists: ${data.detail.playground_id}`
+                    : (data.detail ? JSON.stringify(data.detail) : 'Unknown error');
+                showMsg('cr-msg', err, 'error');
+                return;
+            }
+            showMsg('cr-msg', '[OK] Custom Playground ' + data.id + ' created!', 'success');
+
+            // 폼 초기화: 다음 생성을 위해 기본값으로 되돌린다
+            document.getElementById('cr-ns-all').checked = false;
+            document.getElementById('cr-ns-sandbox').checked = true;
+            document.querySelectorAll('#cr-namespaces-list .ns-check').forEach(c => c.checked = false);
+            document.getElementById('cr-verbs').value = 'get, list, watch';
+
+            loadPlaygrounds();
+            switchTab('playgrounds');  // 생성 후 자동으로 목록 탭으로 이동
+        }
+
+        // ─── 일괄 RBAC 편집 ──────────────────────────────────────────────────
+        // 선택된 플레이그라운드의 RBAC을 동시에 변경한다.
+        // 여러 클러스터에 걸쳐 있는 경우 네임스페이스 선택이 제한된다.
+        async function bulkEditRbac() {
+            if (selectedPgIds.size === 0) { alert('No playgrounds selected'); return; }
+
+            const clusters = new Set();
+            selectedPgIds.forEach(id => {
+                const p = allPlaygrounds.find(item => item.id === id);
+                if (p) clusters.add(p.cluster_id);
+            });
+
+            if (clusters.size > 1) {
+                // 멀티 클러스터 선택: 클러스터가 달라 네임스페이스 목록을 표시할 수 없음
+                openEditRbac('MULTIPLE', Array.from(clusters).join(','), '', 'get, list, watch', true);
+            } else {
+                const clusterId = Array.from(clusters)[0];
+                openEditRbac('MULTIPLE', clusterId, '', 'get, list, watch', true);
+            }
+        }
+
+        // ─── RBAC 편집 모달 ───────────────────────────────────────────────
+        // 플레이그라운드의 허용 네임스페이스와 동사를 변경하는 모달을 열고 닫는다.
+        function openEditRbac(id, clusterId, ns, verbs, isBulk = false) {
+            // 단일/일괄 편집 여부에 따라 hidden input에 다른 값을 저장
+            document.getElementById('edit-id').value = isBulk ? Array.from(selectedPgIds).join(',') : id;
+            document.getElementById('edit-cluster').value = clusterId;
+            document.getElementById('edit-modal-title').textContent = isBulk ? `Bulk Edit RBAC (${selectedPgIds.size} items)` : `Edit RBAC: ${id}`;
+
+            if (isBulk && clusterId.includes(',')) {
+                // 멀티 클러스터 일괄 편집: 네임스페이스 선택 비활성화
+                document.getElementById('edit-namespaces-list').innerHTML = '<p style="color:var(--muted); font-size:0.8rem; margin-top:8px;">Multi-cluster selection: Namespace selection disabled. Use Sandbox or All (*).</p>';
+                document.getElementById('edit-ns-all').checked = false;
+                document.getElementById('edit-ns-sandbox').checked = true;
+            } else {
+                // 현재 설정값으로 체크박스 초기화
+                const checkedVals = ns === 'sandbox-only' ? ['sandbox'] : (ns ? ns.split(',').map(s => s.trim()) : ['sandbox']);
+                document.getElementById('edit-ns-all').checked = checkedVals.includes('*');
+                document.getElementById('edit-ns-sandbox').checked = checkedVals.includes('*') || checkedVals.includes('sandbox');
+                fetchNamespaces(clusterId, 'edit-namespaces-list', checkedVals);
+            }
+
+            document.getElementById('edit-verbs').value = verbs;
+            document.getElementById('edit-msg').style.display = 'none';
+            document.getElementById('edit-rbac-modal').style.display = 'flex';
+        }
+
+        function closeEditRbac() {
+            document.getElementById('edit-rbac-modal').style.display = 'none';
+        }
+
+        // RBAC 변경 저장: 단일이면 PUT /rbac, 일괄이면 POST /bulk-update-rbac
+        async function submitEditRbac() {
+            const idVal = document.getElementById('edit-id').value;
+            const clusterId = document.getElementById('edit-cluster').value;
+            const verbsInput = document.getElementById('edit-verbs').value.trim();
+
+            let namespaces = [];
+            if (document.getElementById('edit-ns-all').checked) {
+                namespaces.push('*');
+            } else {
+                if (document.getElementById('edit-ns-sandbox').checked) namespaces.push('sandbox');
+                const checks = document.querySelectorAll('#edit-namespaces-list .ns-check:checked');
+                checks.forEach(c => namespaces.push(c.value));
+            }
+            if (namespaces.length === 0) namespaces = ['sandbox'];
+
+            const verbs = verbsInput ? verbsInput.split(',').map(s => s.trim()) : ['*'];
+            const isBulk = idVal.includes(',');  // comma가 있으면 여러 ID = 일괄 편집
+
+            showMsg('edit-msg', 'Updating RBAC...', 'info');
+            let res;
+            if (isBulk) {
+                // 일괄 편집: 멀티 클러스터는 현재 지원하지 않음 (서버 측 제약)
+                if (clusterId.includes(',')) {
+                    showMsg('edit-msg', 'Error: Multi-cluster bulk update currently requires playgrounds to be on the same cluster.', 'error');
+                    return;
+                }
+                res = await fetch('/admin/playgrounds/bulk-update-rbac', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ playground_ids: idVal.split(','), cluster_id: clusterId, namespaces, verbs })
+                });
+            } else {
+                // 단일 편집: PUT /admin/playgrounds/{id}/rbac
+                res = await fetch(`/admin/playgrounds/${idVal}/rbac`, {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ cluster_id: clusterId, namespaces, verbs })
+                });
+            }
+
+            if (!res.ok) {
+                showMsg('edit-msg', await res.text(), 'error');
+                return;
+            }
+            showMsg('edit-msg', 'RBAC Updated Successfully', 'success');
+            // 0.7초 후 모달을 닫고 목록을 새로고침한다
+            setTimeout(() => {
+                closeEditRbac();
+                if (isBulk) selectedPgIds.clear();
+                loadPlaygrounds();
+            }, 700);
+        }
+
+        // 플레이그라운드 목록과 클러스터 목록을 동시에 로드하는 편의 함수
+        function loadAll() { loadPlaygrounds(); loadClusters(); }
+
+        // ─── 페이지 초기화 ────────────────────────────────────────────────────
+        // 저장된 자격증명으로 자동 로그인을 시도하고, 없으면 로그인 화면을 표시한다.
+        tryAutoLogin();
+
+        // 클러스터 선택 시 해당 클러스터의 네임스페이스 목록을 동적으로 로드
+        document.getElementById('cr-cluster').addEventListener('change', (e) => {
+            fetchNamespaces(e.target.value, 'cr-namespaces-list', ['sandbox']);
+        });
+
+        // Enter 키로 로그인 가능하도록 이벤트 리스너 등록
+        document.getElementById('login-pass').addEventListener('keydown', e => {
+            if (e.key === 'Enter') doLogin();
+        });
+    </script>
+</body>
+
+</html>

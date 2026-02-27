@@ -1,0 +1,48 @@
+{{- if .Values.serviceAccount.create -}}
+---
+# ── 플랫폼 ClusterRole ──────────────────────────────────────────────────────
+# playground-platform ServiceAccount에 부여할 클러스터 수준 권한을 정의한다.
+# 플랫폼 API 서버가 플레이그라운드를 생성/관리하기 위해 필요한 최소 권한만 부여한다.
+#
+# [설계 원칙 — 최소 권한]
+# - 플랫폼 SA가 K8s 전체를 관리하는 것이 아니라, 플레이그라운드 생명주기에 필요한
+#   리소스(Namespace, Pod, Service, Secret, RBAC)만 처리할 수 있도록 제한한다.
+# - 그러나 멀티 클러스터 환경에서 동적으로 sandbox 네임스페이스를 생성해야 하므로
+#   ClusterRole 수준의 권한이 필요하다.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-role
+rules:
+  # 네임스페이스 관리: study 네임스페이스 확인 + sandbox-{id} 네임스페이스 생성/삭제
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "create", "delete"]
+
+  # 핵심 리소스 관리: 플레이그라운드 파드, SSH 서비스, SSH 키 Secret, SA, 세션 ConfigMap
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/exec", "services", "secrets", "serviceaccounts", "configmaps"]
+    verbs: ["get", "list", "create", "delete", "watch", "patch", "update"]
+
+  # Deployment 관리: 플레이그라운드 파드(ubuntu-sshd-{id}) 생성/삭제
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "create", "delete", "patch"]
+
+  # RBAC 관리: sandbox 네임스페이스에 admin-sa + Role/ClusterRole + Binding 생성
+  # [주의] bind, escalate 권한이 포함되어 있어 커스텀 RBAC 생성에 필요하다.
+  #       이 권한은 강력하므로 플랫폼 SA 자체에 불필요한 접근이 없도록 관리해야 한다.
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list", "create", "delete", "patch", "bind", "escalate"]
+
+  # SA 토큰 생성: get_service_account_token()에서 Legacy SA Token Secret 생성 시 필요
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+
+  # 노드 정보 조회: get_pod_node_ip()에서 플레이그라운드 파드의 노드 IP를 조회할 때 필요
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+{{- end }}
