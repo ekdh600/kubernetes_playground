@@ -246,7 +246,7 @@ def create_playground(
         mgr.create_secret(NAMESPACE, playground_id, public_key, private_key=private_key)
 
         # 사용자 전용 격리 네임스페이스 생성 (sandbox-{id})
-        mgr.create_sandbox_namespace(sandbox_ns)
+        mgr.create_sandbox_namespace(sandbox_ns, playground_id)
 
         # sandbox 네임스페이스에 admin-sa + ClusterRole "admin" RoleBinding 생성
         sa_name = mgr.setup_sandbox_rbac(sandbox_ns)
@@ -284,11 +284,8 @@ def create_playground(
         )
     except Exception as e:
         # 부분적으로 생성된 리소스를 모두 정리하여 클러스터를 깨끗한 상태로 유지한다.
+        # delete_playground()가 study 리소스와 sandbox 네임스페이스를 모두 정리한다.
         mgr.delete_playground(NAMESPACE, playground_id)
-        try:
-            mgr.core_v1.delete_namespace(name=sandbox_ns)
-        except Exception:
-            pass
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -315,11 +312,6 @@ def delete_playground(request: Request, response: Response, playground_id: str):
 
     try:
         mgr.delete_playground(NAMESPACE, playground_id)
-        # sandbox 네임스페이스 삭제 (내부의 SA, Role, Token 등 모두 함께 제거됨)
-        try:
-            mgr.core_v1.delete_namespace(name=f"sandbox-{playground_id}")
-        except Exception:
-            pass
         # 이 playground_id를 가진 모든 세션 ConfigMap의 바인딩을 해제한다.
         clear_all_sessions_for_playground(playground_id)
         return {"message": f"Playground {playground_id} deleted."}
@@ -546,7 +538,7 @@ async def admin_create_playground(
             print(f"Namespace setup warning ({cluster_id}): {ns_err}")
 
         mgr.create_secret(NAMESPACE, playground_id, public_key, private_key=private_key)
-        mgr.create_sandbox_namespace(sandbox_ns)
+        mgr.create_sandbox_namespace(sandbox_ns, playground_id)
 
         # 커스텀 RBAC: 관리자가 지정한 namespaces와 verbs로 SA 권한을 설정한다.
         sa_name = mgr.setup_custom_rbac(
@@ -582,11 +574,8 @@ async def admin_create_playground(
             message="Custom Admin Playground created successfully.",
         )
     except Exception as e:
+        # delete_playground()가 study 리소스와 sandbox 네임스페이스를 모두 정리한다.
         mgr.delete_playground(NAMESPACE, playground_id)
-        try:
-            mgr.core_v1.delete_namespace(name=sandbox_ns)
-        except Exception:
-            pass
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -626,10 +615,6 @@ def admin_delete_playground(
         raise HTTPException(status_code=404, detail="Cluster not found")
     try:
         mgr.delete_playground(NAMESPACE, playground_id)
-        try:
-            mgr.core_v1.delete_namespace(name=f"sandbox-{playground_id}")
-        except Exception:
-            pass
         clear_all_sessions_for_playground(playground_id)
         return {"message": f"Playground {playground_id} deleted by admin."}
     except Exception as e:
@@ -720,13 +705,8 @@ def admin_bulk_delete_playgrounds(
 
         for pg_id in pg_ids:
             try:
-                # study 네임스페이스의 리소스 삭제 (Deployment, Service, Secret 등)
+                # study 네임스페이스의 리소스와 sandbox 네임스페이스를 일괄 삭제한다.
                 mgr.delete_playground(NAMESPACE, pg_id)
-                # sandbox 네임스페이스 전체 삭제
-                try:
-                    mgr.core_v1.delete_namespace(name=f"sandbox-{pg_id}")
-                except Exception:
-                    pass
                 clear_all_sessions_for_playground(pg_id)
                 results.append(pg_id)
             except Exception as e:

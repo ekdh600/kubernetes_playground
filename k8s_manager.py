@@ -129,19 +129,27 @@ class K8sManager:
             print(f"Error listing namespaces: {e}")
             return []
 
-    def create_sandbox_namespace(self, sandbox_ns: str):
+    def create_sandbox_namespace(self, sandbox_ns: str, playground_id: str):
         """
         사용자 전용 격리 네임스페이스를 생성한다.
         이 네임스페이스 안에서만 kubectl 명령을 실행할 수 있도록 RBAC이 구성된다.
         플레이그라운드 삭제 시 이 네임스페이스 전체를 지워 모든 자원을 정리한다.
         """
+        metadata = client.V1ObjectMeta(
+            name=sandbox_ns,
+            labels={
+                "app": "playground-sandbox",
+                "instance": playground_id,
+                "cluster": self.cluster_id,
+            },
+        )
+        body = client.V1Namespace(metadata=metadata)
         try:
-            ns = client.V1Namespace(metadata=client.V1ObjectMeta(name=sandbox_ns))
-            self.core_v1.create_namespace(body=ns)
-            print(f"Sandbox Namespace {sandbox_ns} created.")
+            self.core_v1.create_namespace(body=body)
         except client.exceptions.ApiException as e:
-            if e.status != 409:
-                print(f"Error creating sandbox ns: {e}")
+            if e.status == 409:
+                return
+            raise e
 
     # ── RBAC ─────────────────────────────────────────────────────
 
@@ -790,8 +798,8 @@ current-context: sandbox-context
         생성 시각은 Service의 creation_timestamp를 기준으로 한다.
 
         삭제 범위:
-        - study 네임스페이스의 Deployment, Service, Secret (delete_playground 내)
-        - sandbox-{id} 네임스페이스 전체 (SA, Role, Token 등 포함)
+        - study 네임스페이스의 Deployment, Service, Secret
+        - sandbox-{id} 네임스페이스 전체 (delete_playground 내부에서 처리)
 
         Returns:
             이번 호출에서 삭제된 플레이그라운드 수
@@ -819,13 +827,8 @@ current-context: sandbox-context
                             f"Playground {instance_id} on {self.cluster_id} "
                             f"expired (Age: {age:.0f}s). Deleting..."
                         )
-                        # study 네임스페이스의 리소스 삭제 (Deployment, Service, Secret)
+                        # delete_playground()가 study 리소스와 sandbox 네임스페이스를 모두 정리한다.
                         self.delete_playground(namespace, instance_id)
-                        # sandbox 네임스페이스 전체 삭제 (SA, Role, Token 등)
-                        try:
-                            self.core_v1.delete_namespace(name=f"sandbox-{instance_id}")
-                        except Exception:
-                            pass
                         deleted_count += 1
         except Exception as e:
             print(f"Error during cleanup: {e}")
@@ -904,15 +907,20 @@ current-context: sandbox-context
 
     def delete_playground(self, namespace: str, playground_id: str):
         """
-        study 네임스페이스에 있는 플레이그라운드 리소스를 삭제한다.
-        삭제 대상: Service, Deployment, 커스텀 RBAC, SSH 키 Secret, kubeconfig Secret.
-
-        [주의] sandbox-{playground_id} 네임스페이스는 이 메서드에서 삭제하지 않는다.
-        호출자(main.py 또는 cleanup_expired_playgrounds)가 별도로 네임스페이스를 삭제해야 한다.
+        플레이그라운드와 관련된 모든 리소스를 삭제한다.
+        대상: study 네임스페이스의 리소스 및 sandbox 네임스페이스 전체.
         """
         label_selector = f"instance={playground_id}"
 
-        # Service 삭제
+        # 1. sandbox 네임스페이스 삭제 (내부의 모든 자원이 함께 정리됨)
+        try:
+            sandbox_ns = f"sandbox-{playground_id}"
+            self.core_v1.delete_namespace(name=sandbox_ns)
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                print(f"Error deleting sandbox namespace: {e}")
+
+        # 2. Service 삭제 (study 네임스페이스)
         try:
             services = self.core_v1.list_namespaced_service(
                 namespace=namespace, label_selector=label_selector
@@ -924,7 +932,7 @@ current-context: sandbox-context
         except Exception as e:
             print(f"Error deleting service: {e}")
 
-        # Deployment 삭제 (연결된 ReplicaSet/Pod도 함께 제거됨)
+        # 3. Deployment 삭제 (study 네임스페이스)
         try:
             self.apps_v1.delete_collection_namespaced_deployment(
                 namespace=namespace, label_selector=label_selector
@@ -932,10 +940,10 @@ current-context: sandbox-context
         except Exception as e:
             print(f"Error deleting deployment: {e}")
 
-        # 커스텀 ClusterRole/RoleBinding 삭제 (레이블 기반)
+        # 4. 커스텀 ClusterRole/RoleBinding 삭제 (레이블 기반)
         self.delete_custom_rbac(playground_id)
 
-        # SSH 키 Secret 삭제
+        # 5. SSH 키 Secret 삭제 (study 네임스페이스)
         try:
             self.core_v1.delete_namespaced_secret(
                 name=f"ssh-key-{playground_id}", namespace=namespace
@@ -944,7 +952,7 @@ current-context: sandbox-context
             if e.status != 404:
                 print(f"Error deleting secret: {e}")
 
-        # kubeconfig Secret 삭제
+        # 6. kubeconfig Secret 삭제 (study 네임스페이스)
         try:
             self.core_v1.delete_namespaced_secret(
                 name=f"kubeconfig-{playground_id}", namespace=namespace
