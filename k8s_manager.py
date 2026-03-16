@@ -566,7 +566,7 @@ current-context: sandbox-context
 
         # RUNNER_IMAGE 환경변수로 이미지 버전을 외부에서 주입할 수 있다.
         image_name = os.environ.get(
-            "RUNNER_IMAGE", "your-docker-id/playground-runner:v4"
+            "RUNNER_IMAGE", "ekdh1596/playground-runner:v4"
         )
 
         container = client.V1Container(

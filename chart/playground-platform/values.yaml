@@ -7,14 +7,14 @@
 replicaCount: 1  # 단일 레플리카. HA를 원하면 2 이상으로 설정 (세션 공유를 위한 K8s ConfigMap 사용)
 
 image:
-  repository: your-docker-id/playground-platform  # API 서버 이미지 (FastAPI 백엔드)
+  repository: ekdh1596/playground-platform  # API 서버 이미지 (FastAPI 백엔드)
   pullPolicy: Always   # 배포 시 항상 최신 이미지를 Pull (latest 태그 오염 방지)
   tag: "v19"           # 이미지 버전. CI/CD에서 동적으로 교체하는 것을 권장
 
 # ── UI 서버 이미지 설정 ──────────────────────────────────────
 ui:
   image:
-    repository: your-docker-id/playground-platform-ui  # UI 서버 이미지 (Nginx + 정적 파일)
+    repository: ekdh1596/playground-platform-ui  # UI 서버 이미지 (Nginx + 정적 파일)
     pullPolicy: Always
     tag: "v19"
 
