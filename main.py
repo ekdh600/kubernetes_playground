@@ -951,7 +951,10 @@ async def websocket_endpoint(
             """
             WebSocket(브라우저 키 입력) → Pod stdin 방향 스트리밍.
             1시간 비활성 타임아웃: 장기간 방치된 터미널 세션을 자동으로 해제한다.
+            클라이언트로부터 JSON 형태로 stdin 데이터 또는 화면 크기(resize) 이벤트를 수신한다.
             """
+            import json
+
             try:
                 while True:
                     data = await asyncio.wait_for(
@@ -960,7 +963,28 @@ async def websocket_endpoint(
                     )
                     if not resp.is_open():
                         break
-                    resp.write_stdin(data)
+
+                    parsed_successfully = False
+                    try:
+                        parsed = json.loads(data)
+                        if isinstance(parsed, dict) and "type" in parsed:
+                            msg_type = parsed.get("type")
+                            if msg_type == "stdin":
+                                resp.write_stdin(parsed.get("data", ""))
+                            elif msg_type == "resize":
+                                cols = parsed.get("cols", 80)
+                                rows = parsed.get("rows", 24)
+                                # Channel 4 is used for terminal resize commands in kubernetes.stream
+                                resize_msg = json.dumps({"Width": cols, "Height": rows})
+                                resp.write_channel(4, resize_msg)
+                            parsed_successfully = True
+                    except Exception:
+                        pass
+
+                    # Fallback: 구버전 클라이언트 호환성 유지 및 예외 처리
+                    if not parsed_successfully:
+                        resp.write_stdin(data)
+
             except asyncio.TimeoutError:
                 print(
                     f"WebSocket {playground_id} closed due to inactivity timeout (1 hour)."

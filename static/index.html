@@ -817,6 +817,10 @@
           overlay.style.display = 'none';
           setStatus('green', 'Connected - ' + playgroundId);
           if (!drawerOpen) toggleDrawer();  // SSH 정보 드로어 자동 열기
+          
+          // 백엔드 PTY 화면 크기 동기화 (초기)
+          ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+          
           term.focus();
         } else if (d.indexOf('timed out') !== -1 || d.indexOf('not found') !== -1) {
           setStatus('red', d.trim());
@@ -833,7 +837,19 @@
       ws.onerror = function () { setStatus('red', 'Connection error'); };
 
       // 키보드 입력을 WebSocket으로 전송 (OPEN 상태일 때만 전송)
-      term.onData(function (d) { if (ws.readyState === WebSocket.OPEN) ws.send(d); });
+      // JSON 래핑으로 백엔드에 stdin 이벤트임을 명시한다.
+      term.onData(function (d) { 
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'stdin', data: d }));
+        }
+      });
+      
+      // 터미널 크기 변경 시 백엔드 PTY 크기도 동기화
+      term.onResize(function (size) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize', cols: size.cols, rows: size.rows }));
+        }
+      });
     }
 
     // 페이지 로드 시 초기화 실행
