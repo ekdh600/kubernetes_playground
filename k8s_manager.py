@@ -850,10 +850,12 @@ current-context: sandbox-context
             for s in secrets.items:
                 name = s.metadata.name
                 if name.startswith("kubeconfig-") or name.startswith("ssh-key-"):
+                    # 클러스터 레이블 검증 강화: 레이블이 있으면 현재 클러스터와 일치하는지만 확인
+                    # 레이블이 없더라도(과거 버전에서 생성되었거나 실패한 경우) 삭제 대상에 포함한다.
                     s_cluster = s.metadata.labels.get("cluster") if s.metadata.labels else None
                     if s_cluster and s_cluster != self.cluster_id:
                         continue
-                    if not s_cluster and self.cluster_id != "default":
+                    if s_cluster is None and self.cluster_id != "default":
                         continue
 
                     created_at = s.metadata.creation_timestamp
