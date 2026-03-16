@@ -499,7 +499,9 @@
     const fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);
     term.open(document.getElementById('terminal'));
-    fitAddon.fit();
+    // DOM이 완전히 렌더링된 후 터미널 크기를 측정하기 위해 지연 호출
+    // 즉시 호출하면 컨테이너 크기가 아직 0이어서 기본 80×24로 잘못 측정됨
+    setTimeout(() => fitAddon.fit(), 100);
     // 창 크기 변경 시 터미널도 자동으로 크기를 재조정한다
     window.onresize = () => fitAddon.fit();
 
@@ -819,6 +821,8 @@
           if (!drawerOpen) toggleDrawer();  // SSH 정보 드로어 자동 열기
           
           // 백엔드 PTY 화면 크기 동기화 (초기)
+          // 연결 시점에 한 번 더 fit()으로 실제 컨테이너 크기를 측정하여 전송
+          fitAddon.fit();
           ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
           
           term.focus();

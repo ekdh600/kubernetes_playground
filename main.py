@@ -970,14 +970,14 @@ async def websocket_endpoint(
                             if msg_type == "stdin":
                                 resp.write_stdin(parsed.get("data", ""))
                             elif msg_type == "resize":
-                                cols = parsed.get("cols", 80)
-                                rows = parsed.get("rows", 24)
+                                cols = int(parsed.get("cols", 80))
+                                rows = int(parsed.get("rows", 24))
                                 # Channel 4 is used for terminal resize commands in kubernetes.stream
                                 resize_msg = json.dumps({"Width": cols, "Height": rows})
                                 resp.write_channel(4, resize_msg)
                                 # sudo -i -u ubuntu로 셸 전환 시 K8s pty resize(Channel 4)가
                                 # 전달되지 않는 이슈 대응: 내부 셸 환경변수를 강제로 갱신한다.
-                                stty_cmd = f"stty cols {cols} rows {rows}\r"
+                                stty_cmd = f"stty cols {cols} rows {rows} && export COLUMNS={cols} LINES={rows}\r"
                                 resp.write_stdin(stty_cmd)
                             parsed_successfully = True
                     except Exception:
