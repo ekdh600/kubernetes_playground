@@ -896,14 +896,15 @@ async def websocket_endpoint(
 
     # ─ 5단계: Pod exec 연결 및 양방향 스트리밍 ─
     try:
-        # `su - ubuntu`: 로그인 셸로 전환하여 .bashrc를 로드한다.
-        # root로 실행 중인 entrypoint.sh(sshd 기동용)와 달리 실제 사용자 환경을 제공한다.
+        # `sudo -i -u ubuntu`: 로그인 셸 환경으로 전환하여 .bashrc를 로드한다.
+        # `su` 대신 `sudo`를 사용하는 이유는 bash 터미널 창 크기 조절 시그널(SIGWINCH)을
+        # 자식 프로세스로 안전하게 전파하기 위함이다 (su는 프록시하지 않음).
         resp = stream(
             mgr.core_v1.connect_get_namespaced_pod_exec,
             name=pod_name,
             namespace=NAMESPACE,
             container="ubuntu",
-            command=["su", "-", "ubuntu"],
+            command=["sudo", "-i", "-u", "ubuntu"],
             stderr=True,
             stdin=True,
             stdout=True,
