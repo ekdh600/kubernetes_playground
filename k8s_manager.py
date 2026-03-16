@@ -443,7 +443,14 @@ current-context: sandbox-context
 """
         secret_name = f"kubeconfig-{playground_id}"
         secret = client.V1Secret(
-            metadata=client.V1ObjectMeta(name=secret_name),
+            metadata=client.V1ObjectMeta(
+                name=secret_name,
+                labels={
+                    "app": "playground-kubeconfig",
+                    "instance": playground_id,
+                    "cluster": self.cluster_id,
+                },
+            ),
             # string_data: K8s가 자동으로 base64 인코딩하여 저장한다.
             string_data={"config": config_content},
             type="Opaque",
@@ -483,7 +490,14 @@ current-context: sandbox-context
         secret = client.V1Secret(
             api_version="v1",
             kind="Secret",
-            metadata=client.V1ObjectMeta(name=secret_name),
+            metadata=client.V1ObjectMeta(
+                name=secret_name,
+                labels={
+                    "app": "playground-ssh-key",
+                    "instance": playground_id,
+                    "cluster": self.cluster_id,
+                },
+            ),
             string_data=data,
             type="Opaque",
         )
@@ -795,24 +809,24 @@ current-context: sandbox-context
     ) -> int:
         """
         생성 후 max_age_seconds(기본 86400초 = 24시간)가 지난 플레이그라운드를 삭제한다.
-        생성 시각은 Service의 creation_timestamp를 기준으로 한다.
 
         삭제 범위:
         - study 네임스페이스의 Deployment, Service, Secret
         - sandbox-{id} 네임스페이스 전체 (delete_playground 내부에서 처리)
 
         Returns:
-            이번 호출에서 삭제된 플레이그라운드 수
+            이번 호출에서 삭제된 플레이그라운드 수 (고유 인스턴스 기준)
         """
-        deleted_count = 0
+        deleted_instances = set()
         try:
             now = datetime.datetime.now(datetime.timezone.utc)
+            
+            # 1. 서비스 기반 찾기 (정상적으로 프로비저닝 완료된 인스턴스)
             svcs = self.core_v1.list_namespaced_service(
                 namespace=namespace, label_selector="app=playground"
             )
             for svc in svcs.items:
                 svc_cluster = svc.metadata.labels.get("cluster")
-                # 다른 클러스터 리소스는 이 매니저가 건드리지 않는다
                 if svc_cluster and svc_cluster != self.cluster_id:
                     continue
                 if not svc_cluster and self.cluster_id != "default":
@@ -823,16 +837,45 @@ current-context: sandbox-context
                     age = (now - created_at).total_seconds()
                     if age > max_age_seconds:
                         instance_id = svc.metadata.labels.get("instance")
-                        print(
-                            f"Playground {instance_id} on {self.cluster_id} "
-                            f"expired (Age: {age:.0f}s). Deleting..."
-                        )
-                        # delete_playground()가 study 리소스와 sandbox 네임스페이스를 모두 정리한다.
-                        self.delete_playground(namespace, instance_id)
-                        deleted_count += 1
+                        if instance_id and instance_id not in deleted_instances:
+                            print(
+                                f"Playground {instance_id} on {self.cluster_id} "
+                                f"expired (Age: {age:.0f}s). Deleting..."
+                            )
+                            self.delete_playground(namespace, instance_id)
+                            deleted_instances.add(instance_id)
+
+            # 2. 고아 시크릿 기반 찾기 (생성 중 실패하여 Service가 없는 리소스, 예: kubeconfig-*, ssh-key-*)
+            secrets = self.core_v1.list_namespaced_secret(namespace=namespace)
+            for s in secrets.items:
+                name = s.metadata.name
+                if name.startswith("kubeconfig-") or name.startswith("ssh-key-"):
+                    s_cluster = s.metadata.labels.get("cluster") if s.metadata.labels else None
+                    if s_cluster and s_cluster != self.cluster_id:
+                        continue
+                    if not s_cluster and self.cluster_id != "default":
+                        continue
+
+                    created_at = s.metadata.creation_timestamp
+                    if created_at:
+                        age = (now - created_at).total_seconds()
+                        if age > max_age_seconds:
+                            if name.startswith("kubeconfig-"):
+                                instance_id = name.replace("kubeconfig-", "", 1)
+                            else:
+                                instance_id = name.replace("ssh-key-", "", 1)
+
+                            if instance_id and instance_id not in deleted_instances:
+                                print(
+                                    f"Orphaned Secret {name} on {self.cluster_id} "
+                                    f"expired (Age: {age:.0f}s). Deleting entire playground..."
+                                )
+                                self.delete_playground(namespace, instance_id)
+                                deleted_instances.add(instance_id)
+
         except Exception as e:
             print(f"Error during cleanup: {e}")
-        return deleted_count
+        return len(deleted_instances)
 
     def delete_custom_rbac(self, playground_id: str):
         """
