@@ -384,31 +384,28 @@ async def admin_login(request: Request, response: Response):
     관리자 로그인을 처리하고 세션 쿠키를 발급한다.
     HTTP Basic Auth 또는 JSON Body로 전달된 자격증명을 검증한다.
     """
-    # 1. 자격증명 추출 (Basic Auth 또는 JSON)
-    username = None
-    password = None
+    # 1. 자격증명 추출 (JSON 우선)
+    try:
+        body = await request.json()
+        username = body.get("username")
+        password = body.get("password")
+    except Exception:
+        pass
 
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Basic "):
-        try:
-            decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
-            username, password = decoded.split(":", 1)
-        except Exception:
-            pass
-
+    # 2. 레거시 지원 (Basic Auth) - JSON이 없는 경우에만
     if not username:
-        try:
-            body = await request.json()
-            username = body.get("username")
-            password = body.get("password")
-        except Exception:
-            pass
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
+                username, password = decoded.split(":", 1)
+            except Exception:
+                pass
 
     if not username or not password or not check_admin_credentials(username, password):
         raise HTTPException(
             status_code=401,
             detail="Incorrect admin username or password",
-            headers={"WWW-Authenticate": "Basic"},
         )
 
     # 2. 세션 생성
